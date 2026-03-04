@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="hu">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Akkumulátor kereső</title>
+  <style>
+    :root { color-scheme: light dark; }
+    body { font-family: Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; max-width: 980px; }
+    h1 { margin: 0 0 12px; font-size: 22px; }
+    .row { display: grid; grid-template-columns: repeat(5, minmax(140px, 1fr)); gap: 10px; }
+    select, button { padding: 10px; font-size: 15px; }
+    button { cursor: pointer; }
+    .bar { display:flex; gap:10px; align-items:center; margin-top: 12px; }
+    .status { margin-top: 10px; min-height: 22px; }
+    .muted { opacity: .75; font-size: 13px; }
+    .pill { display:inline-block; padding:2px 8px; border:1px solid rgba(127,127,127,.35); border-radius: 999px; font-size: 12px; opacity:.85; }
+    .err { color: #b00020; }
+  </style>
+
+  <!-- SheetJS (XLSX olvasás böngészőben) -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+
+<body>
+  <h1>Akkumulátor kereső</h1>
+  <div class="muted">A keresések naplózva vannak (időpont + szűrők + találat).</div>
+
+  <div class="row" style="margin-top:14px">
+    <select id="dd1"><option value="">1. szűrő</option></select>
+    <select id="dd2" disabled><option value="">2. szűrő</option></select>
+    <select id="dd3" disabled><option value="">3. szűrő</option></select>
+    <select id="dd4" disabled><option value="">4. szűrő</option></select>
+    <select id="dd5" disabled><option value="">5. szűrő</option></select>
+  </div>
+
+  <div class="bar">
+    <button id="searchBtn" disabled>Keresés</button>
+    <button id="resetBtn" type="button">Törlés</button>
+    <span id="loadedPill" class="pill">Betöltés...</span>
+  </div>
+
+  <div id="status" class="status"></div>
+
+<script>
+/** ============ BEÁLLÍTÁSOK ============ **/
+const DATA_XLSX = "adatbazis.xlsx"; // <-- ha más a fájlnév, írd át
+const LOG_URL = "https://script.google.com/macros/s/AKfycbxkdbVxiW4kQ0x6h3Kz0ojLGyNJj-9DrNkxXi_6fLAWHC9Kweh91rR7TcFwgNmuR7bD/exec";
+
+/**
+ * XLSX elvárt oszlopok (1. munkalap):
+ * A: szűrő1
+ * B: szűrő2
+ * C: szűrő3
+ * D: szűrő4
+ * E: szűrő5
+ * F: találati_link  (UNAS találati link, stb.)
+ *
+ * Fejléc sor lehet, a kód automatikusan kezeli (ha az első sor nem link, attól még ok).
+ */
+
+/** ============ ÁLLAPOT ============ **/
+const dd = [
+  document.getElementById("dd1"),
+  document.getElementById("dd2"),
+  document.getElementById("dd3"),
+  document.getElementById("dd4"),
+  document.getElementById("dd5"),
+];
+const searchBtn = document.getElementById("searchBtn");
+const resetBtn = document.getElementById("resetBtn");
+const statusEl = document.getElementById("status");
+const loadedPill = document.getElementById("loadedPill");
+
+let rows = []; // [{a,b,c,d,e,link}]
+let ready = false;
+
+/** ============ HELPEREK ============ **/
+function setStatus(msg, isError=false) {
+  statusEl.className = "status" + (isError ? " err" : "");
+  statusEl.textContent = msg || "";
+}
+
+function norm(s) {
+  return (s ?? "").toString().trim();
+}
+
+function uniqueSorted(arr) {
+  const set = new Set(arr.filter(v => v !== ""));
+  return Array.from(set).sort((x,y)=>x.localeCompare(y, "hu", { sensitivity:"base" }));
+}
+
+function fillSelect(sel, options, placeholder) {
+  const cur = sel.value;
+  sel.innerHTML = "";
+  sel.appendChild(new Option(placeholder, ""));
+  for (const opt of options) sel.appendChild(new Option(opt, opt));
+  // ha a régi érték még létezik, maradjon kiválasztva
+  if (cur && options.includes(cur)) sel.value = cur;
+}
+
+function getFilters() {
+  return {
+    s1: norm(dd[0].value),
+    s2: norm(dd[1].value),
+    s3: norm(dd[2].value),
+    s4: norm(dd[3].value),
+    s5: norm(dd[4].value),
+  };
+}
+
+function filterRows(f) {
+  return rows.filter(r => {
+    if (f.s1 && r.a !== f.s1) return false;
+    if (f.s2 && r.b !== f.s2) return false;
+    if (f.s3 && r.c !== f.s3) return false;
+    if (f.s4 && r.d !== f.s4) return false;
+    if (f.s5 && r.e !== f.s5) return false;
+    return true;
+  });
+}
+
+function updateDropdowns() {
+  const f = getFilters();
+
+  // 1. dropdown: teljes lista A-ból
+  fillSelect(dd[0], uniqueSorted(rows.map(r => r.a)), "1. szűrő");
+
+  // 2..5: mindig az előzők alapján szűrve
+  const r1 = filterRows({ s1: f.s1 });
+  dd[1].disabled = !f.s1;
+  fillSelect(dd[1], uniqueSorted(r1.map(r => r.b)), "2. szűrő");
+
+  const r2 = filterRows({ s1: f.s1, s2: f.s2 });
+  dd[2].disabled = !(f.s1 && f.s2);
+  fillSelect(dd[2], uniqueSorted(r2.map(r => r.c)), "3. szűrő");
+
+  const r3 = filterRows({ s1: f.s1, s2: f.s2, s3: f.s3 });
+  dd[3].disabled = !(f.s1 && f.s2 && f.s3);
+  fillSelect(dd[3], uniqueSorted(r3.map(r => r.d)), "4. szűrő");
+
+  const r4 = filterRows({ s1: f.s1, s2: f.s2, s3: f.s3, s4: f.s4 });
+  dd[4].disabled = !(f.s1 && f.s2 && f.s3 && f.s4);
+  fillSelect(dd[4], uniqueSorted(r4.map(r => r.e)), "5. szűrő");
+
+  // gomb: akkor engedjük, ha van legalább 1. szűrő (te ezt átírhatod szigorúbbra)
+  searchBtn.disabled = !ready || !f.s1;
+}
+
+function pickBestLink(matches) {
+  // ha több sor is van, akkor:
+  // - ha van olyan, ahol mind az 5 ki van töltve (tehát a link konkrét), azt preferáljuk
+  const withLink = matches.filter(r => r.link);
+  if (withLink.length === 0) return "";
+  // legspecifikusabb: amelyiknél a legtöbb szűrő nem üres
+  withLink.sort((x,y)=>{
+    const sx = [x.a,x.b,x.c,x.d,x.e].filter(Boolean).length;
+    const sy = [y.a,y.b,y.c,y.d,y.e].filter(Boolean).length;
+    return sy - sx;
+  });
+  return withLink[0].link;
+}
+
+/** ============ LOGOLÁS ============ **/
+function logSearch(payload) {
+  // tűz és felejtsd el (ne akadjon a UX)
+  fetch(LOG_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      page: location.href,
+      filters: payload.filters,      // objektum
+      searchText: payload.searchText, // emberi string
+      found: payload.found,
+      link: payload.link || "",
+      ua: navigator.userAgent
+    })
+  }).catch(()=>{});
+}
+
+/** ============ ESEMÉNYEK ============ **/
+for (const sel of dd) {
+  sel.addEventListener("change", () => {
+    // ha egy korábbi dropdown változik, a későbbieket ürítsük
+    const idx = dd.indexOf(sel);
+    for (let i = idx + 1; i < dd.length; i++) dd[i].value = "";
+    updateDropdowns();
+    setStatus("");
+  });
+}
+
+resetBtn.addEventListener("click", () => {
+  for (const sel of dd) sel.value = "";
+  updateDropdowns();
+  setStatus("");
+});
+
+searchBtn.addEventListener("click", () => {
+  const f = getFilters();
+  const matches = filterRows(f);
+  const link = pickBestLink(matches);
+
+  const searchText = [f.s1,f.s2,f.s3,f.s4,f.s5].filter(Boolean).join(" / ");
+
+  const found = !!link;
+  logSearch({ filters: f, searchText, found, link });
+
+  if (!found) {
+    setStatus("Nincs találat erre a kombinációra.");
+    return;
+  }
+  setStatus("Találat megnyitása...");
+  window.open(link, "_blank", "noopener,noreferrer");
+});
+
+/** ============ XLSX BETÖLTÉS ============ **/
+async function loadXlsx() {
+  try {
+    loadedPill.textContent = "Adatbázis betöltése…";
+    const res = await fetch(DATA_XLSX, { cache: "no-store" });
+    if (!res.ok) throw new Error("Nem sikerült betölteni az XLSX-et: " + res.status);
+
+    const ab = await res.arrayBuffer();
+    const wb = XLSX.read(ab, { type: "array" });
+    const wsName = wb.SheetNames[0];
+    const ws = wb.Sheets[wsName];
+    const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
+
+    // aoa: [ [A,B,C,D,E,F], ... ]
+    rows = aoa
+      .map(r => ({
+        a: norm(r[0]),
+        b: norm(r[1]),
+        c: norm(r[2]),
+        d: norm(r[3]),
+        e: norm(r[4]),
+        link: norm(r[5]),
+      }))
+      // dobjuk a teljesen üres sorokat
+      .filter(r => r.a || r.b || r.c || r.d || r.e || r.link);
+
+    // ha van fejléc, tipikusan a link oszlop nem URL: szűrjük ki
+    rows = rows.filter(r => {
+      if (!r.link) return true;
+      return /^https?:\/\//i.test(r.link);
+    });
+
+    if (rows.length === 0) throw new Error("Az XLSX feldolgozás után üres lett (ellenőrizd az oszlopokat).");
+
+    ready = true;
+    loadedPill.textContent = "Kész (" + rows.length + " sor)";
+    updateDropdowns();
+    setStatus("");
+  } catch (err) {
+    console.error(err);
+    loadedPill.textContent = "Hiba";
+    setStatus("Hiba: " + (err?.message || err), true);
+  }
+}
+
+loadXlsx();
+</script>
+</body>
+</html>
