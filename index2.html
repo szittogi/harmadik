@@ -3,262 +3,615 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Akkumulátor kereső</title>
-  <style>
-    :root { color-scheme: light dark; }
-    body { font-family: Arial, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; max-width: 980px; }
-    h1 { margin: 0 0 12px; font-size: 22px; }
-    .row { display: grid; grid-template-columns: repeat(5, minmax(140px, 1fr)); gap: 10px; }
-    select, button { padding: 10px; font-size: 15px; }
-    button { cursor: pointer; }
-    .bar { display:flex; gap:10px; align-items:center; margin-top: 12px; }
-    .status { margin-top: 10px; min-height: 22px; }
-    .muted { opacity: .75; font-size: 13px; }
-    .pill { display:inline-block; padding:2px 8px; border:1px solid rgba(127,127,127,.35); border-radius: 999px; font-size: 12px; opacity:.85; }
-    .err { color: #b00020; }
-  </style>
+  <title>Forex – Akkumulátor kereső</title>
 
-  <!-- SheetJS (XLSX olvasás böngészőben) -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root{
+      --fx:#001D6A;
+      --fx2:#001553;
+
+      --bg:#f3f6fb;
+      --panel:#fff;
+      --line:#e6edf7;
+      --text:#0b1220;
+
+      --shadow:0 10px 22px rgba(11,18,32,.10);
+      --warn:#f59e0b;
+
+      --r:0px;
+      --focus:0 0 0 3px rgba(0,29,106,.16);
+    }
+
+    :root{
+      --ui-width:272px;
+      --label-col:50px;
+      --label-gap:0px;
+      --row-gap:4px;
+      --input-height:23px;
+      --input-font:10px;
+      --label-font:9px;
+
+      --ui-padding:4px;
+      --body-pad:8px;
+
+      --btn-font:10.5px;
+      --btn-pad-y:5px;
+      --btn-pad-x:7px;
+
+      --head-pad-y:7px;
+      --head-pad-x:8px;
+      --title-font:11.5px;
+      --status-font:9.5px;
+    }
+
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:"Manrope",system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(900px 340px at 15% 0%, rgba(0,29,106,.08), transparent 55%),
+        radial-gradient(700px 280px at 85% 8%, rgba(0,29,106,.06), transparent 50%),
+        linear-gradient(180deg, #f7f9fd 0%, var(--bg) 60%, #f7f9fd 100%);
+    }
+
+    .top{height:4px;background:var(--fx);box-shadow:0 8px 14px rgba(2,6,23,.10);}
+    .wrap{max-width:var(--ui-width);margin:8px auto 10px;padding:0 var(--ui-padding);}
+
+    .panel{
+      background:var(--panel);
+      border:2px solid var(--fx);
+      border-radius:var(--r);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+
+    .head{
+      padding:var(--head-pad-y) var(--head-pad-x);
+      border-bottom:2px solid var(--fx);
+      background:linear-gradient(180deg,#fff 0%, #fbfdff 100%);
+      display:flex;align-items:center;justify-content:space-between;gap:6px;
+    }
+    .title{margin:0;font-size:var(--title-font);font-weight:900;letter-spacing:.1px;}
+    .status{
+      display:inline-flex;align-items:center;gap:5px;
+      padding:3px 6px;border-radius:999px;
+      background:rgba(0,29,106,.08);color:var(--fx);
+      font-weight:900;font-size:var(--status-font);white-space:nowrap;
+    }
+    .dot{
+      width:6px;height:6px;border-radius:999px;
+      background:rgba(0,29,106,.70);
+      box-shadow:0 0 0 3px rgba(0,29,106,.12);
+    }
+
+    .body{padding:var(--body-pad);}
+    .grid{display:grid;grid-template-columns:1fr;gap:var(--row-gap);}
+
+    .field{
+      display:grid;
+      grid-template-columns: var(--label-col) 1fr;
+      align-items:center;
+      column-gap:var(--label-gap);
+    }
+
+    label{
+      display:block;
+      font-size:var(--label-font);
+      color:#334155;
+      font-weight:900;
+      margin:0;
+      line-height:1.05;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      text-align:left;
+    }
+
+    select{
+      width:100%;
+      height:var(--input-height);
+      padding:3px 6px;
+      border-radius:0;
+      border:1px solid var(--fx);
+      background:#fff;
+      color:var(--text);
+      font-size:var(--input-font);
+      outline:none;
+      transition:border-color .15s, box-shadow .15s;
+      line-height:1.05;
+      min-width:0;
+
+      appearance:none;
+      background-image:
+        linear-gradient(45deg, transparent 50%, #64748b 50%),
+        linear-gradient(135deg, #64748b 50%, transparent 50%);
+      background-position:calc(100% - 14px) 50%, calc(100% - 9px) 50%;
+      background-size:6px 6px,6px 6px;
+      background-repeat:no-repeat;
+      padding-right:24px;
+    }
+
+    select:focus{
+      border-color:rgba(0,29,106,.75);
+      box-shadow:var(--focus);
+    }
+
+    .actionsRow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:6px;
+      margin-top:7px;
+    }
+    .actionsLeft{display:flex;align-items:center;gap:6px;min-width:0;}
+    .actionsRight{display:flex;align-items:center;gap:6px;margin-left:auto;}
+
+    .btn{
+      border-radius:0;
+      padding:var(--btn-pad-y) var(--btn-pad-x);
+      font-weight:900;
+      font-size:var(--btn-font);
+      cursor:pointer;
+      user-select:none;
+      border:1px solid var(--fx);
+      transition:transform .05s, background .15s, border-color .15s;
+      line-height:1.05;
+      white-space:nowrap;
+      background:#fff;
+      color:var(--fx);
+    }
+    .btn:active{transform:translateY(1px);}
+    .btn:disabled{opacity:.55; cursor:not-allowed;}
+
+    .btn-primary{color:#fff;background:var(--fx);border-color:var(--fx);}
+    .btn-secondary{color:var(--fx);background:#fff;border-color:var(--fx);}
+
+    .ghost{visibility:hidden;pointer-events:none;}
+
+    .miniMsg{
+      margin-top:6px;
+      font-size:10.5px;
+      font-weight:900;
+      line-height:1.1;
+      color:var(--warn);
+      min-height:12px;
+    }
+    .hidden{display:none!important;}
+  </style>
 </head>
 
 <body>
-  <h1>Akkumulátor kereső</h1>
-  <div class="muted">A keresések naplózva vannak (időpont + szűrők + találat).</div>
+  <div class="top"></div>
 
-  <div class="row" style="margin-top:14px">
-    <select id="dd1"><option value="">1. szűrő</option></select>
-    <select id="dd2" disabled><option value="">2. szűrő</option></select>
-    <select id="dd3" disabled><option value="">3. szűrő</option></select>
-    <select id="dd4" disabled><option value="">4. szűrő</option></select>
-    <select id="dd5" disabled><option value="">5. szűrő</option></select>
-  </div>
+  <main class="wrap">
+    <section class="panel">
+      <div class="head">
+        <h2 class="title">Akkumulátor kereső</h2>
+        <div class="status" id="leftStatus"><span class="dot"></span> …</div>
+      </div>
 
-  <div class="bar">
-    <button id="searchBtn" disabled>Keresés</button>
-    <button id="resetBtn" type="button">Törlés</button>
-    <span id="loadedPill" class="pill">Betöltés...</span>
-  </div>
+      <div class="body">
+        <div class="grid">
+          <div id="leftF1Wrap" class="field">
+            <label id="leftF1Label" for="leftF1">—</label>
+            <select id="leftF1" disabled><option value="">—</option></select>
+          </div>
 
-  <div id="status" class="status"></div>
+          <div id="leftF2Wrap" class="field">
+            <label id="leftF2Label" for="leftF2">—</label>
+            <select id="leftF2" disabled><option value="">—</option></select>
+          </div>
+
+          <div id="leftF3Wrap" class="field">
+            <label id="leftF3Label" for="leftF3">—</label>
+            <select id="leftF3" disabled><option value="">—</option></select>
+          </div>
+
+          <div id="leftF4Wrap" class="field">
+            <label id="leftF4Label" for="leftF4">—</label>
+            <select id="leftF4" disabled><option value="">—</option></select>
+          </div>
+
+          <div id="leftF5Wrap" class="field">
+            <label id="leftF5Label" for="leftF5">—</label>
+            <select id="leftF5" disabled><option value="">—</option></select>
+          </div>
+        </div>
+
+        <div class="actionsRow">
+          <div class="actionsLeft">
+            <button class="btn btn-primary ghost" id="leftJump" type="button">Ugrás a találatokhoz</button>
+          </div>
+          <div class="actionsRight">
+            <button class="btn btn-secondary" id="leftReset" disabled>Reset</button>
+            <button class="btn btn-primary" id="leftSearch" disabled>Keresés</button>
+          </div>
+        </div>
+
+        <div class="miniMsg" id="leftMsg"></div>
+      </div>
+    </section>
+  </main>
 
 <script>
-/** ============ BEÁLLÍTÁSOK ============ **/
-const DATA_XLSX = "adatbazis.xlsx"; // <-- ha más a fájlnév, írd át
-const LOG_URL = "https://script.google.com/macros/s/AKfycbxkdbVxiW4kQ0x6h3Kz0ojLGyNJj-9DrNkxXi_6fLAWHC9Kweh91rR7TcFwgNmuR7bD/exec";
+  // ✅ A repo gyökerében legyen: keresoadat.xlsx
+  const DEFAULT_XLSX_URL = "keresoadat.xlsx";
 
-/**
- * XLSX elvárt oszlopok (1. munkalap):
- * A: szűrő1
- * B: szűrő2
- * C: szűrő3
- * D: szűrő4
- * E: szűrő5
- * F: találati_link  (UNAS találati link, stb.)
- *
- * Fejléc sor lehet, a kód automatikusan kezeli (ha az első sor nem link, attól még ok).
- */
+  // ✅ GOOGLE SHEET LOG ENDPOINT (Apps Script Web App /exec)
+  const LOG_ENDPOINT = "https://script.google.com/macros/s/AKfycbw7rDPpY3kkbIrBLErb0wTdYUZC8DgUwyobhUKV9vxTSmGtVKz5sT4--KWTO4xleS7n/exec";
 
-/** ============ ÁLLAPOT ============ **/
-const dd = [
-  document.getElementById("dd1"),
-  document.getElementById("dd2"),
-  document.getElementById("dd3"),
-  document.getElementById("dd4"),
-  document.getElementById("dd5"),
-];
-const searchBtn = document.getElementById("searchBtn");
-const resetBtn = document.getElementById("resetBtn");
-const statusEl = document.getElementById("status");
-const loadedPill = document.getElementById("loadedPill");
+  // ✅ egyszerű session azonosító (egy látogatás = egy session)
+  const SESSION_ID = (crypto?.randomUUID ? crypto.randomUUID() : ("sess_" + Math.random().toString(16).slice(2) + Date.now()));
 
-let rows = []; // [{a,b,c,d,e,link}]
-let ready = false;
+  // ✅ log küldés: "text/plain" (preflight nélkül), nem zavarja a UI-t
+  function sendLog(payload){
+    try{
+      const body = JSON.stringify({
+        ...payload,
+        page: location.href,
+        referrer: document.referrer || "",
+        userAgent: navigator.userAgent || "",
+        sessionId: SESSION_ID
+      });
 
-/** ============ HELPEREK ============ **/
-function setStatus(msg, isError=false) {
-  statusEl.className = "status" + (isError ? " err" : "");
-  statusEl.textContent = msg || "";
-}
-
-function norm(s) {
-  return (s ?? "").toString().trim();
-}
-
-function uniqueSorted(arr) {
-  const set = new Set(arr.filter(v => v !== ""));
-  return Array.from(set).sort((x,y)=>x.localeCompare(y, "hu", { sensitivity:"base" }));
-}
-
-function fillSelect(sel, options, placeholder) {
-  const cur = sel.value;
-  sel.innerHTML = "";
-  sel.appendChild(new Option(placeholder, ""));
-  for (const opt of options) sel.appendChild(new Option(opt, opt));
-  // ha a régi érték még létezik, maradjon kiválasztva
-  if (cur && options.includes(cur)) sel.value = cur;
-}
-
-function getFilters() {
-  return {
-    s1: norm(dd[0].value),
-    s2: norm(dd[1].value),
-    s3: norm(dd[2].value),
-    s4: norm(dd[3].value),
-    s5: norm(dd[4].value),
-  };
-}
-
-function filterRows(f) {
-  return rows.filter(r => {
-    if (f.s1 && r.a !== f.s1) return false;
-    if (f.s2 && r.b !== f.s2) return false;
-    if (f.s3 && r.c !== f.s3) return false;
-    if (f.s4 && r.d !== f.s4) return false;
-    if (f.s5 && r.e !== f.s5) return false;
-    return true;
-  });
-}
-
-function updateDropdowns() {
-  const f = getFilters();
-
-  // 1. dropdown: teljes lista A-ból
-  fillSelect(dd[0], uniqueSorted(rows.map(r => r.a)), "1. szűrő");
-
-  // 2..5: mindig az előzők alapján szűrve
-  const r1 = filterRows({ s1: f.s1 });
-  dd[1].disabled = !f.s1;
-  fillSelect(dd[1], uniqueSorted(r1.map(r => r.b)), "2. szűrő");
-
-  const r2 = filterRows({ s1: f.s1, s2: f.s2 });
-  dd[2].disabled = !(f.s1 && f.s2);
-  fillSelect(dd[2], uniqueSorted(r2.map(r => r.c)), "3. szűrő");
-
-  const r3 = filterRows({ s1: f.s1, s2: f.s2, s3: f.s3 });
-  dd[3].disabled = !(f.s1 && f.s2 && f.s3);
-  fillSelect(dd[3], uniqueSorted(r3.map(r => r.d)), "4. szűrő");
-
-  const r4 = filterRows({ s1: f.s1, s2: f.s2, s3: f.s3, s4: f.s4 });
-  dd[4].disabled = !(f.s1 && f.s2 && f.s3 && f.s4);
-  fillSelect(dd[4], uniqueSorted(r4.map(r => r.e)), "5. szűrő");
-
-  // gomb: akkor engedjük, ha van legalább 1. szűrő (te ezt átírhatod szigorúbbra)
-  searchBtn.disabled = !ready || !f.s1;
-}
-
-function pickBestLink(matches) {
-  // ha több sor is van, akkor:
-  // - ha van olyan, ahol mind az 5 ki van töltve (tehát a link konkrét), azt preferáljuk
-  const withLink = matches.filter(r => r.link);
-  if (withLink.length === 0) return "";
-  // legspecifikusabb: amelyiknél a legtöbb szűrő nem üres
-  withLink.sort((x,y)=>{
-    const sx = [x.a,x.b,x.c,x.d,x.e].filter(Boolean).length;
-    const sy = [y.a,y.b,y.c,y.d,y.e].filter(Boolean).length;
-    return sy - sx;
-  });
-  return withLink[0].link;
-}
-
-/** ============ LOGOLÁS ============ **/
-function logSearch(payload) {
-  // tűz és felejtsd el (ne akadjon a UX)
-  fetch(LOG_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      page: location.href,
-      filters: payload.filters,      // objektum
-      searchText: payload.searchText, // emberi string
-      found: payload.found,
-      link: payload.link || "",
-      ua: navigator.userAgent
-    })
-  }).catch(()=>{});
-}
-
-/** ============ ESEMÉNYEK ============ **/
-for (const sel of dd) {
-  sel.addEventListener("change", () => {
-    // ha egy korábbi dropdown változik, a későbbieket ürítsük
-    const idx = dd.indexOf(sel);
-    for (let i = idx + 1; i < dd.length; i++) dd[i].value = "";
-    updateDropdowns();
-    setStatus("");
-  });
-}
-
-resetBtn.addEventListener("click", () => {
-  for (const sel of dd) sel.value = "";
-  updateDropdowns();
-  setStatus("");
-});
-
-searchBtn.addEventListener("click", () => {
-  const f = getFilters();
-  const matches = filterRows(f);
-  const link = pickBestLink(matches);
-
-  const searchText = [f.s1,f.s2,f.s3,f.s4,f.s5].filter(Boolean).join(" / ");
-
-  const found = !!link;
-  logSearch({ filters: f, searchText, found, link });
-
-  if (!found) {
-    setStatus("Nincs találat erre a kombinációra.");
-    return;
+      // text/plain => CORS-simple request, Apps Script oldalon JSON.parse(e.postData.contents) működik
+      fetch(LOG_ENDPOINT, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body
+      }).catch(()=>{});
+    }catch(_){}
   }
-  setStatus("Találat megnyitása...");
-  window.open(link, "_blank", "noopener,noreferrer");
-});
 
-/** ============ XLSX BETÖLTÉS ============ **/
-async function loadXlsx() {
-  try {
-    loadedPill.textContent = "Adatbázis betöltése…";
-    const res = await fetch(DATA_XLSX, { cache: "no-store" });
-    if (!res.ok) throw new Error("Nem sikerült betölteni az XLSX-et: " + res.status);
+  const $ = (id) => document.getElementById(id);
+  const norm = (s) => String(s ?? "").trim();
 
-    const ab = await res.arrayBuffer();
-    const wb = XLSX.read(ab, { type: "array" });
-    const wsName = wb.SheetNames[0];
-    const ws = wb.Sheets[wsName];
-    const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
+  function simplify(s){
+    return String(s ?? "")
+      .trim().toLowerCase()
+      .replaceAll("á","a").replaceAll("é","e").replaceAll("í","i")
+      .replaceAll("ó","o").replaceAll("ö","o").replaceAll("ő","o")
+      .replaceAll("ú","u").replaceAll("ü","u").replaceAll("ű","u")
+      .replace(/\s+/g," ");
+  }
 
-    // aoa: [ [A,B,C,D,E,F], ... ]
-    rows = aoa
-      .map(r => ({
-        a: norm(r[0]),
-        b: norm(r[1]),
-        c: norm(r[2]),
-        d: norm(r[3]),
-        e: norm(r[4]),
-        link: norm(r[5]),
-      }))
-      // dobjuk a teljesen üres sorokat
-      .filter(r => r.a || r.b || r.c || r.d || r.e || r.link);
+  function fillSelect(sel, values, placeholder){
+    sel.innerHTML = "";
+    const opt0 = document.createElement("option");
+    opt0.value = "";
+    opt0.textContent = placeholder || "Válassz…";
+    sel.appendChild(opt0);
+    for(const v of values){
+      const opt = document.createElement("option");
+      opt.value = v;
+      opt.textContent = v;
+      sel.appendChild(opt);
+    }
+  }
+  function enable(el, on=true){ el.disabled = !on; }
 
-    // ha van fejléc, tipikusan a link oszlop nem URL: szűrjük ki
-    rows = rows.filter(r => {
-      if (!r.link) return true;
-      return /^https?:\/\//i.test(r.link);
+  // ✅ gépelésre ugrás a legördülőben (type-to-jump)
+  function attachTypeahead(sel){
+    let buf = "";
+    let t = null;
+
+    sel.addEventListener("keydown", (e) => {
+      if (sel.disabled) return;
+
+      const isChar = e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
+      if (!isChar && e.key !== "Backspace" && e.key !== "Escape") return;
+
+      if (e.key === "Escape") { buf = ""; return; }
+      if (e.key === "Backspace") { buf = buf.slice(0, -1); return; }
+
+      buf += e.key.toLowerCase();
+      clearTimeout(t);
+      t = setTimeout(() => (buf = ""), 650);
+
+      const opts = Array.from(sel.options);
+      const idx = opts.findIndex(o =>
+        o.value && String(o.textContent || "").trim().toLowerCase().startsWith(buf)
+      );
+
+      if (idx > 0){
+        sel.selectedIndex = idx;
+        sel.dispatchEvent(new Event("change"));
+      }
+      e.preventDefault();
+    });
+  }
+
+  function findHeaderRow(grid){
+    const linkWords = ["link","url","href","weblink","web link"];
+    const maxScan = Math.min(grid.length, 60);
+
+    let best = null;
+    for(let r=0; r<maxScan; r++){
+      const row = grid[r] || [];
+      const cells = row.map(c => simplify(c));
+
+      let linkIdx = -1;
+      for(let i=0;i<cells.length;i++){
+        if(!cells[i]) continue;
+        if(linkWords.includes(cells[i]) || cells[i].includes("link") || cells[i].includes("url")){
+          linkIdx = i; break;
+        }
+      }
+      if(linkIdx < 0) continue;
+
+      const headers = row.map(h => norm(h)).filter(h => h);
+      if(headers.length < 2) continue;
+
+      const score = headers.length;
+      if(!best || score > best.score){
+        best = { r, linkIdx, row, score };
+      }
+    }
+
+    if(!best){
+      for(let r=0; r<maxScan; r++){
+        const row = grid[r] || [];
+        const headers = row.map(h => norm(h)).filter(h => h);
+        if(headers.length >= 2){
+          const cells = row.map(c => simplify(c));
+          let linkIdx = cells.findIndex(x => x === "link" || x.includes("link") || x.includes("url"));
+          if(linkIdx < 0) linkIdx = row.length - 1;
+          best = { r, linkIdx, row, score: headers.length };
+          break;
+        }
+      }
+    }
+    return best;
+  }
+
+  function makeUniversalFinder(cfg){
+    const st = {
+      filterHeaders: [],
+      filterIdxs: [],
+      rows: [],
+      maps: [],
+      linkByKey: new Map(),
+      lastLink: ""
+    };
+
+    const el = {
+      status: $(cfg.status),
+      reset: $(cfg.reset),
+      search: $(cfg.search),
+      jump: $(cfg.jump),
+      msg: $(cfg.msg),
+
+      fWrap: [$(cfg.f1Wrap), $(cfg.f2Wrap), $(cfg.f3Wrap), $(cfg.f4Wrap), $(cfg.f5Wrap)],
+      fLabel:[$(cfg.f1Label),$(cfg.f2Label),$(cfg.f3Label),$(cfg.f4Label),$(cfg.f5Label)],
+      fSel:  [$(cfg.f1),     $(cfg.f2),     $(cfg.f3),     $(cfg.f4),     $(cfg.f5)]
+    };
+
+    el.fSel.forEach(attachTypeahead);
+
+    function setStatus(text){ el.status.lastChild.nodeValue = " " + text; }
+    function keyOf(vals){ return vals.map(v => v ?? "").join("||"); }
+
+    function hideJump(){
+      el.jump.classList.add("ghost");
+      el.jump.onclick = null;
+      st.lastLink = "";
+    }
+    function showJump(link){
+      st.lastLink = link;
+      el.jump.classList.remove("ghost");
+      el.jump.onclick = () => window.open(st.lastLink, "_blank", "noopener,noreferrer");
+    }
+
+    function applyFieldVisibility(){
+      for(let i=0;i<5;i++){
+        const on = i < st.filterHeaders.length;
+        el.fWrap[i].classList.toggle("hidden", !on);
+        if(on) el.fLabel[i].textContent = st.filterHeaders[i];
+      }
+    }
+
+    function buildCascades(){
+      st.maps = [];
+      for(let i=0;i<st.filterHeaders.length;i++) st.maps.push(new Map());
+      st.linkByKey = new Map();
+
+      for(const r of st.rows){
+        const fullKey = keyOf(r.vals);
+        if(!st.linkByKey.has(fullKey)) st.linkByKey.set(fullKey, r.link);
+
+        for(let i=0;i<st.filterHeaders.length;i++){
+          const prefix = keyOf(r.vals.slice(0,i));
+          const nextVal = r.vals[i];
+          const m = st.maps[i];
+          if(!m.has(prefix)) m.set(prefix, new Set());
+          m.get(prefix).add(nextVal);
+        }
+      }
+    }
+
+    function populateLevel(level){
+      const prefix = keyOf(el.fSel.slice(0, level).map(s => s.value));
+      const set = st.maps[level].get(prefix) || new Set();
+      const values = Array.from(set)
+        .filter(v => v !== "")
+        .sort((a,b)=> a.localeCompare(b, "hu", {numeric:true, sensitivity:"base"}));
+      fillSelect(el.fSel[level], values, "Válassz…");
+      enable(el.fSel[level], true);
+    }
+
+    function resetSelections(){
+      hideJump();
+      el.msg.textContent = st.rows.length ? "Válassz + Keresés." : "";
+
+      for(let i=0;i<5;i++){
+        fillSelect(el.fSel[i], [], i===0 ? "Válassz…" : "—");
+        enable(el.fSel[i], false);
+      }
+      if(st.rows.length && st.filterHeaders.length) populateLevel(0);
+
+      // opcionális log: reset
+      sendLog({ event:"reset", result:"", link:"", fields:{} });
+    }
+
+    function parseGrid(grid){
+      const hdr = findHeaderRow(grid);
+      if(!hdr){
+        setStatus("Hiba");
+        throw new Error("Nem találok fejlécsort (kell egy 'Link' jellegű oszlop).");
+      }
+
+      const headerRow = hdr.r;
+      const headerCells = (hdr.row || []).map(h => norm(h));
+      const linkIdx = hdr.linkIdx;
+
+      const candidates = [];
+      for(let i=0;i<headerCells.length;i++){
+        const h = headerCells[i];
+        if(!h) continue;
+        if(i === linkIdx) continue;
+        candidates.push({ idx:i, name:h });
+      }
+
+      const filter = candidates.slice(0, 5);
+      if(filter.length === 0){
+        setStatus("Hiba");
+        throw new Error("Találtam Link oszlopot, de nincs más oszlop a szűréshez.");
+      }
+
+      st.filterHeaders = filter.map(x => x.name);
+      st.filterIdxs = filter.map(x => x.idx);
+
+      st.rows = [];
+      for(let r = headerRow + 1; r < grid.length; r++){
+        const row = grid[r] || [];
+        const link = norm(row[linkIdx]);
+        if(!link) continue;
+
+        const vals = st.filterIdxs.map(ix => norm(row[ix]));
+        if(vals.every(v => !v)) continue;
+
+        st.rows.push({ vals, link });
+      }
+
+      if(st.rows.length === 0){
+        setStatus("Hiba");
+        throw new Error("0 adatsor. Ellenőrizd: a Link oszlopban vannak URL-ek.");
+      }
+
+      applyFieldVisibility();
+      buildCascades();
+
+      el.search.disabled = false;
+      el.reset.disabled = false;
+
+      setStatus("Fájl OK");
+      resetSelections();
+
+      // opcionális log: betöltés ok
+      sendLog({ event:"load_ok", result:"ok", link:"", fields:{ rows: st.rows.length, filters: st.filterHeaders.length } });
+    }
+
+    async function loadArrayBuffer(ab){
+      hideJump();
+      const wb = XLSX.read(ab, { type:"array" });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const grid = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+      parseGrid(grid);
+    }
+
+    async function loadRemote(url){
+      const res = await fetch(url, { cache:"no-store" });
+      if(!res.ok) throw new Error("Nem tudom letölteni: " + url + " (" + res.status + ")");
+      const ab = await res.arrayBuffer();
+      await loadArrayBuffer(ab);
+    }
+
+    for(let i=0;i<5;i++){
+      el.fSel[i].addEventListener("change", () => {
+        hideJump();
+
+        for(let j=i+1;j<5;j++){
+          fillSelect(el.fSel[j], [], "—");
+          enable(el.fSel[j], false);
+        }
+
+        const next = i+1;
+        if(next < st.filterHeaders.length){
+          const ok = el.fSel.slice(0, next).every(s => s.value);
+          if(ok) populateLevel(next);
+        }
+
+        el.msg.textContent = "Válassz + Keresés.";
+      });
+    }
+
+    el.search.addEventListener("click", () => {
+      hideJump();
+
+      const needed = st.filterHeaders.length;
+      const vals = el.fSel.slice(0, needed).map(s => s.value);
+
+      // összeállítjuk a mezőket név->érték formában, ezt loggoljuk
+      const fields = {};
+      for(let i=0;i<needed;i++){
+        fields[st.filterHeaders[i]] = vals[i] || "";
+      }
+
+      if(vals.some(v => !v)){
+        el.msg.textContent = `Hiányzik mező (${needed} db).`;
+        sendLog({ event:"search", result:"incomplete", link:"", fields });
+        return;
+      }
+
+      const link = st.linkByKey.get(keyOf(vals)) || "";
+      if(!link){
+        el.msg.textContent = "Nincs találat.";
+        sendLog({ event:"search", result:"miss", link:"", fields });
+        return;
+      }
+
+      el.msg.textContent = "";
+      showJump(link);
+
+      // ✅ log: sikeres találat
+      sendLog({ event:"search", result:"hit", link, fields });
     });
 
-    if (rows.length === 0) throw new Error("Az XLSX feldolgozás után üres lett (ellenőrizd az oszlopokat).");
+    el.reset.addEventListener("click", () => resetSelections());
 
-    ready = true;
-    loadedPill.textContent = "Kész (" + rows.length + " sor)";
-    updateDropdowns();
-    setStatus("");
-  } catch (err) {
-    console.error(err);
-    loadedPill.textContent = "Hiba";
-    setStatus("Hiba: " + (err?.message || err), true);
+    // ✅ induláskor automatikus betöltés (UI-ban nincs “betöltés” szöveg)
+    setStatus("…");
+    loadRemote(DEFAULT_XLSX_URL).catch(err => {
+      console.error(err);
+      setStatus("Hiba");
+      el.msg.textContent = "Hiba az adatbázis betöltésekor.";
+
+      // log: betöltési hiba
+      sendLog({ event:"load_error", result:"error", link:"", fields:{ message: String(err?.message || err) } });
+
+      alert("Hiba: " + (err.message || err));
+    });
   }
-}
 
-loadXlsx();
+  makeUniversalFinder({
+    status:"leftStatus", reset:"leftReset", search:"leftSearch",
+    jump:"leftJump",
+    msg:"leftMsg",
+
+    f1Wrap:"leftF1Wrap", f1Label:"leftF1Label", f1:"leftF1",
+    f2Wrap:"leftF2Wrap", f2Label:"leftF2Label", f2:"leftF2",
+    f3Wrap:"leftF3Wrap", f3Label:"leftF3Label", f3:"leftF3",
+    f4Wrap:"leftF4Wrap", f4Label:"leftF4Label", f4:"leftF4",
+    f5Wrap:"leftF5Wrap", f5Label:"leftF5Label", f5:"leftF5",
+  });
 </script>
 </body>
 </html>
